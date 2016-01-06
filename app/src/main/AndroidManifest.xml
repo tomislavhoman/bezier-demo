@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.homan.examples.bezierdemo">
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme">
+        <activity
+            android:name=".activity.MainActivity"
+            android:label="@string/app_name"
+            android:theme="@style/AppTheme.NoActionBar">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <activity
+            android:name=".activity.SimpleLineActivity"
+            android:label="@string/title_activity_simple_line"
+            android:theme="@style/AppTheme.NoActionBar" />
+        <activity
+            android:name=".activity.Circle4PointsActivity"
+            android:label="@string/title_activity_cicrcle4_points"
+            android:theme="@style/AppTheme.NoActionBar" />
+        <activity
+            android:name=".activity.Circle128PointsActivity"
+            android:label="@string/title_activity_circle128_points"
+            android:theme="@style/AppTheme.NoActionBar" />
+        <activity
+            android:name=".activity.DynamicCircleActivity"
+            android:label="@string/title_activity_dynamic_circle"
+            android:theme="@style/AppTheme.NoActionBar"></activity>
+    </application>
+
+</manifest>
