@@ -5,4 +5,5 @@
     <string name="title_activity_cicrcle4_points">Cicrcle4PointsActivity</string>
     <string name="title_activity_circle128_points">Circle128PointsActivity</string>
     <string name="title_activity_dynamic_circle">DynamicCircleActivity</string>
+    <string name="title_activity_composite_line">CompositeLineActivity</string>
 </resources>

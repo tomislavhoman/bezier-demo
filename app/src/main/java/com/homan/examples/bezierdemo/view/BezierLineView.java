@@ -45,6 +45,6 @@ public class BezierLineView extends BezierView {
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
 
-        canvas.drawPath(drawBezier(x1, y1, x2, y2, x3, y3), paint);
+        canvas.drawPath(calculateBezier(x1, y1, x2, y2, x3, y3), paint);
     }
 }

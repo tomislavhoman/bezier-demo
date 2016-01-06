@@ -40,7 +40,7 @@ public class MainActivity extends AppCompatActivity {
         findViewById(R.id.button2).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                startActivity(new Intent(MainActivity.this, Circle4PointsActivity.class));
+                startActivity(new Intent(MainActivity.this, SimpleCircleActivity.class));
             }
         });
 
@@ -55,6 +55,13 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View view) {
                 startActivity(new Intent(MainActivity.this, DynamicCircleActivity.class));
+            }
+        });
+
+        findViewById(R.id.button5).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                startActivity(new Intent(MainActivity.this, CompositeLineActivity.class));
             }
         });
     }

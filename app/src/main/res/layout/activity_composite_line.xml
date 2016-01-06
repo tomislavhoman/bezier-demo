@@ -5,7 +5,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:fitsSystemWindows="true"
-    tools:context=".activity.SimpleCircleActivity">
+    tools:context="com.homan.examples.bezierdemo.activity.CompositeLineActivity">
 
     <android.support.design.widget.AppBarLayout
         android:layout_width="match_parent"
@@ -21,7 +21,7 @@
 
     </android.support.design.widget.AppBarLayout>
 
-    <include layout="@layout/content_cicrcle4_points" />
+    <include layout="@layout/content_composite_line" />
 
     <android.support.design.widget.FloatingActionButton
         android:id="@+id/fab"

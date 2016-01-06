@@ -9,15 +9,15 @@
     android:paddingRight="@dimen/activity_horizontal_margin"
     android:paddingTop="@dimen/activity_vertical_margin"
     app:layout_behavior="@string/appbar_scrolling_view_behavior"
-    tools:context=".activity.SimpleCircleActivity"
-    tools:showIn="@layout/activity_cicrcle4_points">
+    tools:context="com.homan.examples.bezierdemo.activity.CompositeLineActivity"
+    tools:showIn="@layout/activity_composite_line">
 
-    <com.homan.examples.bezierdemo.view.BezierSimpleCircleView
+    <com.homan.examples.bezierdemo.view.CompositeBezierLineView
         android:layout_width="200dp"
         android:layout_height="200dp"
         android:id="@+id/bezier_view"
         android:layout_centerInParent="true">
 
-    </com.homan.examples.bezierdemo.view.BezierSimpleCircleView>
+    </com.homan.examples.bezierdemo.view.CompositeBezierLineView>
 
 </RelativeLayout>

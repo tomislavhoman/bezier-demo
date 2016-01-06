@@ -23,7 +23,7 @@
             android:label="@string/title_activity_simple_line"
             android:theme="@style/AppTheme.NoActionBar" />
         <activity
-            android:name=".activity.Circle4PointsActivity"
+            android:name=".activity.SimpleCircleActivity"
             android:label="@string/title_activity_cicrcle4_points"
             android:theme="@style/AppTheme.NoActionBar" />
         <activity
@@ -33,6 +33,10 @@
         <activity
             android:name=".activity.DynamicCircleActivity"
             android:label="@string/title_activity_dynamic_circle"
+            android:theme="@style/AppTheme.NoActionBar" />
+        <activity
+            android:name=".activity.CompositeLineActivity"
+            android:label="@string/title_activity_composite_line"
             android:theme="@style/AppTheme.NoActionBar"></activity>
     </application>
 

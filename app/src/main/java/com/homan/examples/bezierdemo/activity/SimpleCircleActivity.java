@@ -9,7 +9,7 @@ import android.view.View;
 
 import com.homan.examples.bezierdemo.R;
 
-public class Circle4PointsActivity extends AppCompatActivity {
+public class SimpleCircleActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
