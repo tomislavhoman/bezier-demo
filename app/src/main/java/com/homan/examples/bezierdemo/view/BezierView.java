@@ -10,6 +10,7 @@ import android.view.View;
 public class BezierView extends View {
 
     protected Paint paint;
+    protected Paint basePaint;
 
     public BezierView(Context context) {
         super(context);
@@ -31,6 +32,11 @@ public class BezierView extends View {
         paint.setColor(Color.BLACK);
         paint.setStyle(Paint.Style.STROKE);
         paint.setStrokeWidth(2.0f);
+
+        basePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        basePaint.setColor(Color.RED);
+        basePaint.setStyle(Paint.Style.STROKE);
+        basePaint.setStrokeWidth(2.0f);
     }
 
     protected Path calculateBezier(int x1, int y1, int x2, int y2, int x3, int y3) {
@@ -40,28 +46,44 @@ public class BezierView extends View {
         return path;
     }
 
-    protected Path calculateBezier(Point2D[] points) {
-        Point2D[] divided = CatmullRomSplineUtils.subdividePoints(points, 10);
+    protected Path calculateBezier(Point2D[] points, boolean closed) {
+        Point2D[] divided = CatmullRomSplineUtils.subdividePoints(points, 10, closed);
         final Path path = new Path();
-        path.moveTo(divided[0].x, divided[0].y);
+        path.moveTo((float) divided[0].x, (float) divided[0].y);
         for (int i = 0; i < divided.length - 2; i++) {
-            path.quadTo(divided[i + 1].x, divided[i + 1].y, divided[i + 2].x, divided[i + 2].y);
+            path.quadTo((float) divided[i + 1].x, (float) divided[i + 1].y, (float) divided[i + 2].x, (float) divided[i + 2].y);
         }
         return path;
     }
 
-    private static class CatmullRomSpline {
-        private float p0, p1, p2, p3;
+    protected Path calculateBezier(Point2D[] points) {
+        return calculateBezier(points, false);
+    }
 
-        public CatmullRomSpline(float p0, float p1, float p2, float p3) {
+    protected Point2D fromPolar(int r, int phi) {
+        return fromPolar(r, phi, new Point2D(0, 0));
+    }
+
+    protected Point2D fromPolar(int r, int phi, Point2D center) {
+        final Point2D point = new Point2D();
+        final double radians = Math.toRadians(phi);
+        point.setX(Math.cos(radians) * r + center.x);
+        point.setY(-Math.sin(radians) * r + center.y);
+        return point;
+    }
+
+    private static class CatmullRomSpline {
+        private double p0, p1, p2, p3;
+
+        public CatmullRomSpline(double p0, double p1, double p2, double p3) {
             this.p0 = p0;
             this.p1 = p1;
             this.p2 = p2;
             this.p3 = p3;
         }
 
-        public float q(float t) {
-            return 0.5f * ((2 * p1) +
+        public double q(double t) {
+            return 0.5 * ((2 * p1) +
                     (p2 - p0) * t +
                     (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t +
                     (3 * p1 - p0 - 3 * p2 + p3) * t * t * t);
@@ -70,56 +92,56 @@ public class BezierView extends View {
         /**
          * @return the p0
          */
-        public float getP0() {
+        public double getP0() {
             return p0;
         }
 
         /**
          * @param p0 the p0 to set
          */
-        public void setP0(float p0) {
+        public void setP0(double p0) {
             this.p0 = p0;
         }
 
         /**
          * @return the p1
          */
-        public float getP1() {
+        public double getP1() {
             return p1;
         }
 
         /**
          * @param p1 the p1 to set
          */
-        public void setP1(float p1) {
+        public void setP1(double p1) {
             this.p1 = p1;
         }
 
         /**
          * @return the p2
          */
-        public float getP2() {
+        public double getP2() {
             return p2;
         }
 
         /**
          * @param p2 the p2 to set
          */
-        public void setP2(float p2) {
+        public void setP2(double p2) {
             this.p2 = p2;
         }
 
         /**
          * @return the p3
          */
-        public float getP3() {
+        public double getP3() {
             return p3;
         }
 
         /**
          * @param p3 the p3 to set
          */
-        public void setP3(float p3) {
+        public void setP3(double p3) {
             this.p3 = p3;
         }
     }
@@ -143,13 +165,13 @@ public class BezierView extends View {
     }
 
     protected static class Point2D {
-        private float x, y;
+        private double x, y;
 
         public Point2D() {
             this(0f, 0f);
         }
 
-        public Point2D(float x, float y) {
+        public Point2D(double x, double y) {
             this.x = x;
             this.y = y;
         }
@@ -157,28 +179,28 @@ public class BezierView extends View {
         /**
          * @return the x
          */
-        public float getX() {
+        public double getX() {
             return x;
         }
 
         /**
          * @param x the x to set
          */
-        public void setX(float x) {
+        public void setX(double x) {
             this.x = x;
         }
 
         /**
          * @return the y
          */
-        public float getY() {
+        public double getY() {
             return y;
         }
 
         /**
          * @param y the y to set
          */
-        public void setY(float y) {
+        public void setY(double y) {
             this.y = y;
         }
 
@@ -189,6 +211,11 @@ public class BezierView extends View {
     }
 
     private static class CatmullRomSplineUtils {
+
+        public static Point2D[] subdividePoints(Point2D[] points, int subdivisions) {
+            return subdividePoints(points, subdivisions, false);
+        }
+
         /**
          * Creates catmull spline curves between the points array.
          *
@@ -196,7 +223,7 @@ public class BezierView extends View {
          * @param subdivisions The number of subdivisions to add between each of the points.
          * @return A larger array with the points subdivided.
          */
-        public static Point2D[] subdividePoints(Point2D[] points, int subdivisions) {
+        public static Point2D[] subdividePoints(Point2D[] points, int subdivisions, boolean closed) {
             assert points != null;
             assert points.length >= 3;
 
@@ -205,10 +232,10 @@ public class BezierView extends View {
             float increments = 1f / (float) subdivisions;
 
             for (int i = 0; i < points.length - 1; i++) {
-                Point2D p0 = i == 0 ? points[i] : points[i - 1];
+                Point2D p0 = i == 0 ? (closed ? points[points.length - 2] : points[i]) : points[i - 1];
                 Point2D p1 = points[i];
                 Point2D p2 = points[i + 1];
-                Point2D p3 = (i + 2 == points.length) ? points[i + 1] : points[i + 2];
+                Point2D p3 = (i + 2 == points.length) ? (closed ? points[1] : points[i + 1]) : points[i + 2];
 
                 CatmullRomSpline2D crs = new CatmullRomSpline2D(p0, p1, p2, p3);
 

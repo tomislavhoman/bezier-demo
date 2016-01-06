@@ -1,21 +1,14 @@
 package com.homan.examples.bezierdemo.view;
 
 import android.content.Context;
+import android.graphics.Canvas;
 import android.util.AttributeSet;
 
 public class BezierSimpleCircleView extends BezierView {
 
-    private int x1 = 0;
-    private int y1 = 0;
-
-    private int x2 = 0;
-    private int y2 = 0;
-
-    private int x3 = 0;
-    private int y3 = 0;
-
-    private int x4 = 0;
-    private int y5 = 0;
+    private Point2D[] points;
+    private Point2D center;
+    private int radius;
 
     public BezierSimpleCircleView(Context context) {
         super(context);
@@ -33,6 +26,27 @@ public class BezierSimpleCircleView extends BezierView {
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
 
+        center = new Point2D(w / 2, h / 2);
+        radius = 250;
+        final int delta = 30;
 
+        points = new Point2D[]{
+                new Point2D(center.getX() + radius, center.getY()),
+                fromPolar(radius + delta, 45, center),
+                new Point2D(center.getX(), center.getY() - radius),
+                fromPolar(radius - delta, 135, center),
+                new Point2D(center.getX() - radius, center.getY()),
+                fromPolar(radius + delta, 225, center),
+                new Point2D(center.getX(), center.getY() + radius),
+                fromPolar(radius - delta, 315, center),
+                new Point2D(center.getX() + radius, center.getY()),
+        };
+    }
+
+    @Override
+    protected void onDraw(Canvas canvas) {
+        super.onDraw(canvas);
+        canvas.drawCircle((float) center.getX(), (float) center.getY(), radius, basePaint);
+        canvas.drawPath(calculateBezier(points, true), paint);
     }
 }

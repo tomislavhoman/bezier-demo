@@ -56,7 +56,7 @@ public class CompositeBezierLineView extends BezierView {
         int x6 = x5 + deltaX;
         int y6 = baseY + 5 * deltaY;
 
-       points = new Point2D[]{
+        points = new Point2D[]{
                 new Point2D(x1, y1),
                 new Point2D(x2, y2),
                 new Point2D(x3, y3),
@@ -70,7 +70,7 @@ public class CompositeBezierLineView extends BezierView {
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
 
-        canvas.drawLine(centerX1, centerY1, centerX2, centerY2, paint);
+        canvas.drawLine(centerX1, centerY1, centerX2, centerY2, basePaint);
         canvas.drawPath(calculateBezier(points), paint);
     }
 }
