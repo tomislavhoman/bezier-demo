@@ -8,16 +8,17 @@ import android.support.v7.widget.Toolbar;
 import android.view.View;
 
 import com.homan.examples.bezierdemo.R;
+import com.homan.examples.bezierdemo.view.AudioCaptureView;
 import com.homan.examples.bezierdemo.view.DynamicBezierCircleView;
 
-public class DynamicCircleActivity extends AppCompatActivity {
+public class AudioCaptureActivity extends AppCompatActivity {
 
-    private DynamicBezierCircleView equalizer;
+    private AudioCaptureView equalizer;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_dynamic_circle);
+        setContentView(R.layout.activity_audio_capture);
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
 
@@ -30,7 +31,7 @@ public class DynamicCircleActivity extends AppCompatActivity {
             }
         });
 
-        equalizer = (DynamicBezierCircleView) findViewById(R.id.equalizer);
+        equalizer = (AudioCaptureView) findViewById(R.id.equalizer);
         equalizer.play(this);
     }
 
