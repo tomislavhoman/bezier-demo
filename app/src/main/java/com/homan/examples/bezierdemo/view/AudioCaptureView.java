@@ -9,6 +9,7 @@ import android.media.MediaPlayer;
 import android.media.audiofx.Visualizer;
 import android.net.Uri;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.View;
 
 import java.io.IOException;
@@ -82,31 +83,52 @@ public class AudioCaptureView extends View {
 
             @Override
             public void onWaveFormDataCapture(Visualizer visualizer, byte[] bytes, int j) {
-
-                final int length = bytes.length;
-                final int[] transformed = new int[length];
-                for (int i = 0; i < length; i++) {
-                    transformed[i] = (int) (((bytes[i] + 127) / 256.0) * 300.0);
-                }
-
-
-                for (int i = 0; i < length; i++) {
-                    transformed[i] = (transformed[(i - 2 + length) % length] + transformed[(i - 1 + length) % length] + transformed[i] + transformed[(i + 1 + length) % length]) / 4;
-                }
-
-                data = new int[128];
-                for (int i = 0; i < length; i += 8) {
-                    data[i / 8] = transformed[i];
-                }
-                invalidate();
             }
 
             @Override
-            public void onFftDataCapture(Visualizer visualizer, byte[] bytes, int i) {
-
+            public void onFftDataCapture(Visualizer visualizer, byte[] bytes, int sampleRate) {
+                processData(bytes);
             }
-        }, Visualizer.getMaxCaptureRate() / 2, true, false);
+        }, Visualizer.getMaxCaptureRate(), false, true);
         visualizer.setEnabled(true);
+    }
+
+    private void processData(byte[] bytes) {
+        final int length = bytes.length;
+        final int[] magnitudes = new int[length / 2];
+        for (int i = 0; i < magnitudes.length; i++) {
+            magnitudes[i] = bytes[2 * i] * bytes[2 * i] + bytes[2 * i + 1] * bytes[2 * i + 1];
+        }
+
+        final int AVERAGING_WINDOW = 4;
+        final int[] averagedData = new int[magnitudes.length];
+        for (int i = 0; i < averagedData.length; i++) {
+
+            int sum = 0;
+            for (int j = -AVERAGING_WINDOW / 2; j <= AVERAGING_WINDOW / 2; j++) {
+                sum += magnitudes[(i + j + averagedData.length) % averagedData.length];
+            }
+            averagedData[i] = sum / (AVERAGING_WINDOW + 1);
+        }
+
+//        final int[] scaled = new int[averagedData.length];
+//        for (int i = 0; i < scaled.length; i++) {
+//            scaled[i] = (int) ((averagedData[i] / 4000.0) * 300.0);
+//        }
+
+//        data = new int[128];
+//        for (int i = 0; i < length; i += 8) {
+//            data[i / 8] = transformed[i];
+//        }
+
+        int max = 0;
+        data = new int[averagedData.length];
+        for (int i = 0; i < data.length; i++) {
+            data[i] = averagedData[i];
+            max = Math.max(max, data[i]);
+        }
+        Log.d("EQ", String.format("Max: %d", max));
+        invalidate();
     }
 
     public void stop() {

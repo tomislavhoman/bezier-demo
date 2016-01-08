@@ -10,7 +10,6 @@ import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.AttributeSet;
-import android.util.Log;
 
 import java.io.IOException;
 
@@ -29,8 +28,12 @@ public class DynamicBezierCircleView extends BezierView {
 
     private static final int NUMBER_OF_SAMPLES = 32;
     private static final int OFFSET = 20;
-    private static final double SCALE_FACTOR = 100.0;
+
     private static final int AVERAGING_WINDOW = 4;
+    private static final double MAXIMAL_SCALE_FACTOR = 100.0;
+
+    private static final double[] SCALE_FACTORS = new double[]{1.0}; // fraction of maximal
+    private static final int NUMBER_OF_SCALE_FACTORS = SCALE_FACTORS.length;
 
     private Handler uiHandler = new Handler(Looper.getMainLooper());
 
@@ -88,22 +91,14 @@ public class DynamicBezierCircleView extends BezierView {
 
             @Override
             public void onWaveFormDataCapture(Visualizer visualizer, byte[] waveform, int samplingRate) {
-
-//                int diff = 0;
-//                for (int i = 0; i < waveform.length; i++) {
-//                    if (waveform[i] != -128 && waveform[i] != 127) {
-//                        diff++;
-//                    }
-//                }
-//                Log.d("EQ", String.format("Diif from -128 and 127: %d", diff));
-//        Log.d("EQ", Arrays.toString(bytes));
                 calculateData(waveform);
             }
 
             @Override
             public void onFftDataCapture(Visualizer visualizer, byte[] fft, int samplingRate) {
+                calculateData(fft);
             }
-        }, CAPTURE_RATE * 1000, true, false);
+        }, CAPTURE_RATE * 1000, false, true);
         visualizer.setEnabled(true);
     }
 
@@ -123,7 +118,9 @@ public class DynamicBezierCircleView extends BezierView {
         // Scaled data to [0..SCALE_FACTOR]
         final int[] scaledData = new int[inputDataLength];
         for (int i = 0; i < inputDataLength; i++) {
-            scaledData[i] = (int) (((bytes[i] + 128) / 255.0) * SCALE_FACTOR);
+            final int bucket = (i * NUMBER_OF_SCALE_FACTORS) / inputDataLength;
+//            Log.d("EQ", String.format("i: %d, bucket: %d", i, bucket));
+            scaledData[i] = (int) (((bytes[i] + 128) / 255.0) * MAXIMAL_SCALE_FACTOR * SCALE_FACTORS[bucket]);
         }
 
         // Average the data for every i as Avg(i - AVERAGING_WINDOW / 2 .. i + AVERAGING_WINDOW / 2)
@@ -173,7 +170,6 @@ public class DynamicBezierCircleView extends BezierView {
         points[NUMBER_OF_INTERPOLATED_FRAMES - 1] = newTargetData;
 
         // Interpolate (linear)
-//        points[0] = points[NUMBER_OF_INTERPOLATED_FRAMES - 1];
         for (int j = 0; j < NUMBER_OF_SAMPLES; j++) {
             final PointF targetPoint = points[NUMBER_OF_INTERPOLATED_FRAMES - 1][j];
             final PointF originPoint = points[0][j];
@@ -182,7 +178,6 @@ public class DynamicBezierCircleView extends BezierView {
             for (int i = 1; i < NUMBER_OF_INTERPOLATED_FRAMES - 1; i++) {
                 points[i][j] = new PointF((float) (originPoint.x + i * deltaX), (float) (originPoint.y + i * deltaY));
             }
-//            points[i] = points[NUMBER_OF_INTERPOLATED_FRAMES - 1];
         }
         for (int i = 1; i < NUMBER_OF_INTERPOLATED_FRAMES - 1; i++) {
             points[i][NUMBER_OF_SAMPLES] = points[i][0];
@@ -221,7 +216,6 @@ public class DynamicBezierCircleView extends BezierView {
 
         if (points != null && points.length > 3) {
             canvas.drawPath(calculateBezier(points[currentFrame], true), paint);
-            Log.d("EQ", String.format("Current frame: %d. Point 10: %s", currentFrame, points[currentFrame][2].toString()));
         }
 
         currentFrame++;
