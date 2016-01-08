@@ -2,6 +2,7 @@ package com.homan.examples.bezierdemo.view;
 
 import android.content.Context;
 import android.graphics.Canvas;
+import android.graphics.PointF;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.media.audiofx.Visualizer;
@@ -34,8 +35,8 @@ public class DynamicBezierCircleView extends BezierView {
     private Handler uiHandler = new Handler(Looper.getMainLooper());
 
     private int currentFrame = 0;
-    private BezierView.Point2D[][] points;
-    private BezierView.Point2D center;
+    private PointF[][] points;
+    private PointF center;
     private int radius;
 
     private MediaPlayer mediaPlayer;
@@ -140,9 +141,9 @@ public class DynamicBezierCircleView extends BezierView {
             Get new origin frame. It is either last shown frame,
             or if nothing was shown we calculate the default frame
          */
-        Point2D[] newOriginData;
+        PointF[] newOriginData;
         if (points == null) {
-            newOriginData = new Point2D[NUMBER_OF_SAMPLES + 1];
+            newOriginData = new PointF[NUMBER_OF_SAMPLES + 1];
 
             for (int i = 0; i < NUMBER_OF_SAMPLES; i++) {
                 final int phi = (i * 360) / NUMBER_OF_SAMPLES;
@@ -155,10 +156,10 @@ public class DynamicBezierCircleView extends BezierView {
         }
 
         // Create new set of frame as {origin, interpolated, target, origin(to close the loop)}
-        points = new BezierView.Point2D[NUMBER_OF_INTERPOLATED_FRAMES][NUMBER_OF_SAMPLES + 1];
+        points = new PointF[NUMBER_OF_INTERPOLATED_FRAMES][NUMBER_OF_SAMPLES + 1];
 
         // Calculate the new target frame
-        Point2D[] newTargetData = new Point2D[NUMBER_OF_SAMPLES + 1];
+        PointF[] newTargetData = new PointF[NUMBER_OF_SAMPLES + 1];
         newTargetData[0] = fromPolar(radius + OFFSET + averagedData[0], 0, center);
         final int step = inputDataLength / NUMBER_OF_SAMPLES;
         for (int i = step, j = 1; i < inputDataLength && j < NUMBER_OF_SAMPLES; i += step, j++) {
@@ -174,12 +175,12 @@ public class DynamicBezierCircleView extends BezierView {
         // Interpolate (linear)
 //        points[0] = points[NUMBER_OF_INTERPOLATED_FRAMES - 1];
         for (int j = 0; j < NUMBER_OF_SAMPLES; j++) {
-            final Point2D targetPoint = points[NUMBER_OF_INTERPOLATED_FRAMES - 1][j];
-            final Point2D originPoint = points[0][j];
-            final double deltaX = (targetPoint.getX() - originPoint.getX()) / NUMBER_OF_INTERPOLATED_FRAMES;
-            final double deltaY = (targetPoint.getY() - originPoint.getY()) / NUMBER_OF_INTERPOLATED_FRAMES;
+            final PointF targetPoint = points[NUMBER_OF_INTERPOLATED_FRAMES - 1][j];
+            final PointF originPoint = points[0][j];
+            final double deltaX = (targetPoint.x - originPoint.x) / NUMBER_OF_INTERPOLATED_FRAMES;
+            final double deltaY = (targetPoint.y - originPoint.y) / NUMBER_OF_INTERPOLATED_FRAMES;
             for (int i = 1; i < NUMBER_OF_INTERPOLATED_FRAMES - 1; i++) {
-                points[i][j] = new Point2D(originPoint.getX() + i * deltaX, originPoint.getY() + i * deltaY);
+                points[i][j] = new PointF((float) (originPoint.x + i * deltaX), (float) (originPoint.y + i * deltaY));
             }
 //            points[i] = points[NUMBER_OF_INTERPOLATED_FRAMES - 1];
         }
@@ -209,14 +210,14 @@ public class DynamicBezierCircleView extends BezierView {
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
 
-        center = new BezierView.Point2D(w / 2, h / 2);
+        center = new PointF(w / 2, h / 2);
         radius = 230;
     }
 
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-        canvas.drawCircle((float) center.getX(), (float) center.getY(), radius, basePaint);
+        canvas.drawCircle(center.x, center.y, radius, basePaint);
 
         if (points != null && points.length > 3) {
             canvas.drawPath(calculateBezier(points[currentFrame], true), paint);

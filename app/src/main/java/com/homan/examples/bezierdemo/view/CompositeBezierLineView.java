@@ -2,6 +2,7 @@ package com.homan.examples.bezierdemo.view;
 
 import android.content.Context;
 import android.graphics.Canvas;
+import android.graphics.PointF;
 import android.util.AttributeSet;
 
 public class CompositeBezierLineView extends BezierView {
@@ -11,7 +12,7 @@ public class CompositeBezierLineView extends BezierView {
     private int centerX2 = 0;
     private int centerY2 = 0;
 
-    private Point2D[] points;
+    private PointF[] points;
 
     public CompositeBezierLineView(Context context) {
         super(context);
@@ -56,13 +57,13 @@ public class CompositeBezierLineView extends BezierView {
         int x6 = x5 + deltaX;
         int y6 = baseY + 5 * deltaY;
 
-        points = new Point2D[]{
-                new Point2D(x1, y1),
-                new Point2D(x2, y2),
-                new Point2D(x3, y3),
-                new Point2D(x4, y4),
-                new Point2D(x5, y5),
-                new Point2D(x6, y6),
+        points = new PointF[]{
+                new PointF(x1, y1),
+                new PointF(x2, y2),
+                new PointF(x3, y3),
+                new PointF(x4, y4),
+                new PointF(x5, y5),
+                new PointF(x6, y6),
         };
     }
 

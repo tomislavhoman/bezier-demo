@@ -4,6 +4,7 @@ import android.content.Context;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.graphics.PointF;
 import android.util.AttributeSet;
 import android.view.View;
 
@@ -46,8 +47,8 @@ public class BezierView extends View {
         return path;
     }
 
-    protected Path calculateBezier(Point2D[] points, boolean closed) {
-        Point2D[] divided = CatmullRomSplineUtils.subdividePoints(points, 10, closed);
+    protected Path calculateBezier(PointF[] points, boolean closed) {
+        PointF[] divided = CatmullRomSplineUtils.subdividePoints(points, 10, closed);
         final Path path = new Path();
         path.moveTo((float) divided[0].x, (float) divided[0].y);
         for (int i = 0; i < divided.length - 2; i++) {
@@ -56,19 +57,18 @@ public class BezierView extends View {
         return path;
     }
 
-    protected Path calculateBezier(Point2D[] points) {
+    protected Path calculateBezier(PointF[] points) {
         return calculateBezier(points, false);
     }
 
-    protected Point2D fromPolar(int r, int phi) {
-        return fromPolar(r, phi, new Point2D(0, 0));
+    protected PointF fromPolar(int r, int phi) {
+        return fromPolar(r, phi, new PointF(0, 0));
     }
 
-    protected Point2D fromPolar(int r, int phi, Point2D center) {
-        final Point2D point = new Point2D();
+    protected PointF fromPolar(int r, int phi, PointF center) {
+        final PointF point = new PointF();
         final double radians = Math.toRadians(phi);
-        point.setX(Math.cos(radians) * r + center.x);
-        point.setY(-Math.sin(radians) * r + center.y);
+        point.set((float) Math.cos(radians) * r + center.x, (float) -Math.sin(radians) * r + center.y);
         return point;
     }
 
@@ -149,70 +149,24 @@ public class BezierView extends View {
     private static class CatmullRomSpline2D {
         private CatmullRomSpline splineXVals, splineYVals;
 
-        public CatmullRomSpline2D(Point2D p0, Point2D p1, Point2D p2, Point2D p3) {
+        public CatmullRomSpline2D(PointF p0, PointF p1, PointF p2, PointF p3) {
             assert p0 != null : "p0 cannot be null";
             assert p1 != null : "p1 cannot be null";
             assert p2 != null : "p2 cannot be null";
             assert p3 != null : "p3 cannot be null";
 
-            splineXVals = new CatmullRomSpline(p0.getX(), p1.getX(), p2.getX(), p3.getX());
-            splineYVals = new CatmullRomSpline(p0.getY(), p1.getY(), p2.getY(), p3.getY());
+            splineXVals = new CatmullRomSpline(p0.x, p1.x, p2.x, p3.x);
+            splineYVals = new CatmullRomSpline(p0.y, p1.y, p2.y, p3.y);
         }
 
-        public Point2D q(float t) {
-            return new Point2D(splineXVals.q(t), splineYVals.q(t));
-        }
-    }
-
-    protected static class Point2D {
-        private double x, y;
-
-        public Point2D() {
-            this(0f, 0f);
-        }
-
-        public Point2D(double x, double y) {
-            this.x = x;
-            this.y = y;
-        }
-
-        /**
-         * @return the x
-         */
-        public double getX() {
-            return x;
-        }
-
-        /**
-         * @param x the x to set
-         */
-        public void setX(double x) {
-            this.x = x;
-        }
-
-        /**
-         * @return the y
-         */
-        public double getY() {
-            return y;
-        }
-
-        /**
-         * @param y the y to set
-         */
-        public void setY(double y) {
-            this.y = y;
-        }
-
-        @Override
-        public String toString() {
-            return String.format("(X0:%f, Y0:%3f)", x, y);
+        public PointF q(float t) {
+            return new PointF((float) splineXVals.q(t), (float) splineYVals.q(t));
         }
     }
 
     private static class CatmullRomSplineUtils {
 
-        public static Point2D[] subdividePoints(Point2D[] points, int subdivisions) {
+        public static PointF[] subdividePoints(PointF[] points, int subdivisions) {
             return subdividePoints(points, subdivisions, false);
         }
 
@@ -223,19 +177,19 @@ public class BezierView extends View {
          * @param subdivisions The number of subdivisions to add between each of the points.
          * @return A larger array with the points subdivided.
          */
-        public static Point2D[] subdividePoints(Point2D[] points, int subdivisions, boolean closed) {
+        public static PointF[] subdividePoints(PointF[] points, int subdivisions, boolean closed) {
             assert points != null;
             assert points.length >= 3;
 
-            Point2D[] subdividedPoints = new Point2D[((points.length - 1) * subdivisions) + 1];
+            PointF[] subdividedPoints = new PointF[((points.length - 1) * subdivisions) + 1];
 
             float increments = 1f / (float) subdivisions;
 
             for (int i = 0; i < points.length - 1; i++) {
-                Point2D p0 = i == 0 ? (closed ? points[points.length - 2] : points[i]) : points[i - 1];
-                Point2D p1 = points[i];
-                Point2D p2 = points[i + 1];
-                Point2D p3 = (i + 2 == points.length) ? (closed ? points[1] : points[i + 1]) : points[i + 2];
+                PointF p0 = i == 0 ? (closed ? points[points.length - 2] : points[i]) : points[i - 1];
+                PointF p1 = points[i];
+                PointF p2 = points[i + 1];
+                PointF p3 = (i + 2 == points.length) ? (closed ? points[1] : points[i + 1]) : points[i + 2];
 
                 CatmullRomSpline2D crs = new CatmullRomSpline2D(p0, p1, p2, p3);
 
