@@ -44,6 +44,10 @@
         <activity
             android:name=".activity.AudioCaptureActivity"
             android:label="@string/title_activity_audio_capture"
+            android:theme="@style/AppTheme.NoActionBar" />
+        <activity
+            android:name=".activity.InterpolatorActivity"
+            android:label="@string/title_activity_interpolator"
             android:theme="@style/AppTheme.NoActionBar"></activity>
     </application>
 

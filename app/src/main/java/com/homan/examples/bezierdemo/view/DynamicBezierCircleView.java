@@ -6,20 +6,35 @@ import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.media.audiofx.Visualizer;
 import android.net.Uri;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.AttributeSet;
+import android.util.Log;
 
 import java.io.IOException;
-import java.util.Random;
 
 public class DynamicBezierCircleView extends BezierView {
 
     private static final String MEDIA_URL = "http://mosod.sharp-stream.com/mosicyod/HOUSEPARTYTHROWBACK.mp3";
 
-    private static final int NUMBER_OF_SLICES = 32;
-    private static final int MAX_DELTA_POSITIVE = 70;
-    private static final int MAX_DELTA_NEGATIVE = 30;
+    private static final int UI_FPS = 60;
+    private static final int DATA_FPS = 5; // max 20
 
-    private BezierView.Point2D[] points;
+    private static final int REFRESH_RATE = 1000 / UI_FPS; // ms
+    private static final int CAPTURE_RATE = DATA_FPS; // Hz - max 20
+
+    // Should be data capture rate [ms] / ui refresh rate [ms]
+    private static final int NUMBER_OF_INTERPOLATED_FRAMES = 1000 / (REFRESH_RATE * CAPTURE_RATE);
+
+    private static final int NUMBER_OF_SAMPLES = 32;
+    private static final int OFFSET = 20;
+    private static final double SCALE_FACTOR = 100.0;
+    private static final int AVERAGING_WINDOW = 4;
+
+    private Handler uiHandler = new Handler(Looper.getMainLooper());
+
+    private int currentFrame = 0;
+    private BezierView.Point2D[][] points;
     private BezierView.Point2D center;
     private int radius;
 
@@ -52,9 +67,10 @@ public class DynamicBezierCircleView extends BezierView {
             mediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
             mediaPlayer.setOnPreparedListener(new MediaPlayer.OnPreparedListener() {
                 @Override
-                public void onPrepared(MediaPlayer mediaPlayer) {
+                public void onPrepared(final MediaPlayer mediaPlayer) {
                     mediaPlayer.start();
                     startCapturingAudioSamples(mediaPlayer.getAudioSessionId());
+                    startAnimation();
                 }
             });
             mediaPlayer.prepareAsync();
@@ -64,20 +80,29 @@ public class DynamicBezierCircleView extends BezierView {
     }
 
     private void startCapturingAudioSamples(int audioSessionId) {
-        Visualizer visualizer = new Visualizer(audioSessionId);
+        visualizer = new Visualizer(audioSessionId);
         visualizer.setCaptureSize(Visualizer.getCaptureSizeRange()[1]);
+        visualizer.setScalingMode(Visualizer.SCALING_MODE_AS_PLAYED);
         visualizer.setDataCaptureListener(new Visualizer.OnDataCaptureListener() {
 
             @Override
-            public void onWaveFormDataCapture(Visualizer visualizer, byte[] bytes, int i) {
+            public void onWaveFormDataCapture(Visualizer visualizer, byte[] waveform, int samplingRate) {
 
+//                int diff = 0;
+//                for (int i = 0; i < waveform.length; i++) {
+//                    if (waveform[i] != -128 && waveform[i] != 127) {
+//                        diff++;
+//                    }
+//                }
+//                Log.d("EQ", String.format("Diif from -128 and 127: %d", diff));
+//        Log.d("EQ", Arrays.toString(bytes));
+                calculateData(waveform);
             }
 
             @Override
-            public void onFftDataCapture(Visualizer visualizer, byte[] bytes, int i) {
-
+            public void onFftDataCapture(Visualizer visualizer, byte[] fft, int samplingRate) {
             }
-        }, Visualizer.getMaxCaptureRate() / 2, true, false);
+        }, CAPTURE_RATE * 1000, true, false);
         visualizer.setEnabled(true);
     }
 
@@ -88,6 +113,96 @@ public class DynamicBezierCircleView extends BezierView {
         mediaPlayer.reset();
         visualizer.setEnabled(false);
         visualizer = null;
+        stopAnimation();
+    }
+
+    private void calculateData(byte[] bytes) {
+        final int inputDataLength = bytes.length;
+
+        // Scaled data to [0..SCALE_FACTOR]
+        final int[] scaledData = new int[inputDataLength];
+        for (int i = 0; i < inputDataLength; i++) {
+            scaledData[i] = (int) (((bytes[i] + 128) / 255.0) * SCALE_FACTOR);
+        }
+
+        // Average the data for every i as Avg(i - AVERAGING_WINDOW / 2 .. i + AVERAGING_WINDOW / 2)
+        final int[] averagedData = new int[inputDataLength];
+        for (int i = 0; i < inputDataLength; i++) {
+
+            int sum = 0;
+            for (int j = -AVERAGING_WINDOW / 2; j <= AVERAGING_WINDOW / 2; j++) {
+                sum += scaledData[(i + j + inputDataLength) % inputDataLength];
+            }
+            averagedData[i] = sum / (AVERAGING_WINDOW + 1);
+        }
+
+        /*
+            Get new origin frame. It is either last shown frame,
+            or if nothing was shown we calculate the default frame
+         */
+        Point2D[] newOriginData;
+        if (points == null) {
+            newOriginData = new Point2D[NUMBER_OF_SAMPLES + 1];
+
+            for (int i = 0; i < NUMBER_OF_SAMPLES; i++) {
+                final int phi = (i * 360) / NUMBER_OF_SAMPLES;
+                newOriginData[i] = fromPolar(radius + OFFSET, phi, center);
+            }
+            newOriginData[NUMBER_OF_SAMPLES] = newOriginData[0];
+
+        } else {
+            newOriginData = points[NUMBER_OF_INTERPOLATED_FRAMES - 1];
+        }
+
+        // Create new set of frame as {origin, interpolated, target, origin(to close the loop)}
+        points = new BezierView.Point2D[NUMBER_OF_INTERPOLATED_FRAMES][NUMBER_OF_SAMPLES + 1];
+
+        // Calculate the new target frame
+        Point2D[] newTargetData = new Point2D[NUMBER_OF_SAMPLES + 1];
+        newTargetData[0] = fromPolar(radius + OFFSET + averagedData[0], 0, center);
+        final int step = inputDataLength / NUMBER_OF_SAMPLES;
+        for (int i = step, j = 1; i < inputDataLength && j < NUMBER_OF_SAMPLES; i += step, j++) {
+            final int phi = (j * 360) / NUMBER_OF_SAMPLES;
+            newTargetData[j] = fromPolar(radius + OFFSET + averagedData[i], phi, center);
+        }
+        newTargetData[NUMBER_OF_SAMPLES] = newTargetData[0];
+
+        // Set the new origin and target frames
+        points[0] = newOriginData;
+        points[NUMBER_OF_INTERPOLATED_FRAMES - 1] = newTargetData;
+
+        // Interpolate (linear)
+//        points[0] = points[NUMBER_OF_INTERPOLATED_FRAMES - 1];
+        for (int j = 0; j < NUMBER_OF_SAMPLES; j++) {
+            final Point2D targetPoint = points[NUMBER_OF_INTERPOLATED_FRAMES - 1][j];
+            final Point2D originPoint = points[0][j];
+            final double deltaX = (targetPoint.getX() - originPoint.getX()) / NUMBER_OF_INTERPOLATED_FRAMES;
+            final double deltaY = (targetPoint.getY() - originPoint.getY()) / NUMBER_OF_INTERPOLATED_FRAMES;
+            for (int i = 1; i < NUMBER_OF_INTERPOLATED_FRAMES - 1; i++) {
+                points[i][j] = new Point2D(originPoint.getX() + i * deltaX, originPoint.getY() + i * deltaY);
+            }
+//            points[i] = points[NUMBER_OF_INTERPOLATED_FRAMES - 1];
+        }
+        for (int i = 1; i < NUMBER_OF_INTERPOLATED_FRAMES - 1; i++) {
+            points[i][NUMBER_OF_SAMPLES] = points[i][0];
+        }
+        currentFrame = 0;
+    }
+
+    private Runnable invalidateRunnable = new Runnable() {
+        @Override
+        public void run() {
+            invalidate();
+            postDelayed(this, REFRESH_RATE);
+        }
+    };
+
+    private void startAnimation() {
+        uiHandler.post(invalidateRunnable);
+    }
+
+    private void stopAnimation() {
+        uiHandler.removeCallbacks(invalidateRunnable);
     }
 
     @Override
@@ -96,25 +211,21 @@ public class DynamicBezierCircleView extends BezierView {
 
         center = new BezierView.Point2D(w / 2, h / 2);
         radius = 230;
-
-        points = new BezierView.Point2D[NUMBER_OF_SLICES + 1];
-        final Random random = new Random();
-
-        points[0] = new BezierView.Point2D(center.getX() + radius, center.getY());
-        for (int i = 1; i < NUMBER_OF_SLICES; i++) {
-            final int phi = i * 360 / NUMBER_OF_SLICES;
-            final int direction = i % 2 == 0 ? 1 : -1;
-            final int maxDelta = direction > 0 ? MAX_DELTA_POSITIVE : MAX_DELTA_NEGATIVE;
-            int delta = direction * random.nextInt(maxDelta + 1);
-            points[i] = fromPolar(radius + delta, phi, center);
-        }
-        points[NUMBER_OF_SLICES] = new BezierView.Point2D(center.getX() + radius, center.getY());
     }
 
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
         canvas.drawCircle((float) center.getX(), (float) center.getY(), radius, basePaint);
-        canvas.drawPath(calculateBezier(points, true), paint);
+
+        if (points != null && points.length > 3) {
+            canvas.drawPath(calculateBezier(points[currentFrame], true), paint);
+            Log.d("EQ", String.format("Current frame: %d. Point 10: %s", currentFrame, points[currentFrame][2].toString()));
+        }
+
+        currentFrame++;
+        if (currentFrame >= NUMBER_OF_INTERPOLATED_FRAMES) {
+            currentFrame = NUMBER_OF_INTERPOLATED_FRAMES - 1;
+        }
     }
 }

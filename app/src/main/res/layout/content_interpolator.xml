@@ -9,14 +9,15 @@
     android:paddingRight="@dimen/activity_horizontal_margin"
     android:paddingTop="@dimen/activity_vertical_margin"
     app:layout_behavior="@string/appbar_scrolling_view_behavior"
-    tools:context="com.homan.examples.bezierdemo.activity.DynamicCircleActivity"
-    tools:showIn="@layout/activity_dynamic_circle">
+    tools:context="com.homan.examples.bezierdemo.activity.InterpolatorActivity"
+    tools:showIn="@layout/activity_interpolator">
 
-    <com.homan.examples.bezierdemo.view.DynamicBezierCircleView
+    <com.homan.examples.bezierdemo.view.InterpolatorView
         android:layout_width="400dp"
         android:layout_height="400dp"
         android:id="@+id/equalizer"
         android:layout_centerInParent="true">
 
-    </com.homan.examples.bezierdemo.view.DynamicBezierCircleView>
+    </com.homan.examples.bezierdemo.view.InterpolatorView>
+
 </RelativeLayout>
