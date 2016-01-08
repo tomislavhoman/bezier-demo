@@ -16,9 +16,11 @@ import java.io.IOException;
 public class DynamicBezierCircleView extends BezierView {
 
     private static final String MEDIA_URL = "http://mosod.sharp-stream.com/mosicyod/HOUSEPARTYTHROWBACK.mp3";
+//    private static final String MEDIA_URL = "http://www.audiocheck.net/Audio/audiocheck.net_frequencycheckhigh_44100.mp3";
+//    private static final String MEDIA_URL = "http://www.audiocheck.net/Audio/audiocheck.net_sweep20-20klog.mp3";
 
     private static final int UI_FPS = 60;
-    private static final int DATA_FPS = 5; // max 20
+    private static final int DATA_FPS = 20; // max 20
 
     private static final int REFRESH_RATE = 1000 / UI_FPS; // ms
     private static final int CAPTURE_RATE = DATA_FPS; // Hz - max 20
@@ -26,11 +28,12 @@ public class DynamicBezierCircleView extends BezierView {
     // Should be data capture rate [ms] / ui refresh rate [ms]
     private static final int NUMBER_OF_INTERPOLATED_FRAMES = 1000 / (REFRESH_RATE * CAPTURE_RATE);
 
-    private static final int NUMBER_OF_SAMPLES = 32;
+    private static final int NUMBER_OF_SAMPLES = 64;
     private static final int OFFSET = 20;
 
     private static final int AVERAGING_WINDOW = 4;
-    private static final double MAXIMAL_SCALE_FACTOR = 100.0;
+    private static final double MAXIMAL_SCALE_FACTOR = 40.0;
+    private static final int MAXIMAL_VALUE = 256;
 
     private static final double[] SCALE_FACTORS = new double[]{1.0}; // fraction of maximal
     private static final int NUMBER_OF_SCALE_FACTORS = SCALE_FACTORS.length;
@@ -86,7 +89,7 @@ public class DynamicBezierCircleView extends BezierView {
     private void startCapturingAudioSamples(int audioSessionId) {
         visualizer = new Visualizer(audioSessionId);
         visualizer.setCaptureSize(Visualizer.getCaptureSizeRange()[1]);
-        visualizer.setScalingMode(Visualizer.SCALING_MODE_AS_PLAYED);
+//        visualizer.setScalingMode(Visualizer.SCALING_MODE_AS_PLAYED);
         visualizer.setDataCaptureListener(new Visualizer.OnDataCaptureListener() {
 
             @Override
@@ -113,23 +116,37 @@ public class DynamicBezierCircleView extends BezierView {
     }
 
     private void calculateData(byte[] bytes) {
-        final int inputDataLength = bytes.length;
+
+        final int offset = 64;
+        final int[] truncatedData = new int[bytes.length / 2 - offset];
+        for (int i = 0; i < truncatedData.length; i++) {
+            truncatedData[i] = bytes[i + offset];
+        }
+
+        final int[] magnitudes = new int[truncatedData.length / 2];
+        for (int i = 0; i < magnitudes.length; i++) {
+            magnitudes[i] = bytes[2 * i] * bytes[2 * i] + bytes[2 * i + 1] * bytes[2 * i + 1];
+        }
 
         // Scaled data to [0..SCALE_FACTOR]
-        final int[] scaledData = new int[inputDataLength];
-        for (int i = 0; i < inputDataLength; i++) {
-            final int bucket = (i * NUMBER_OF_SCALE_FACTORS) / inputDataLength;
+        final int[] scaledData = new int[magnitudes.length];
+        for (int i = 0; i < scaledData.length; i++) {
+//            final int bucket = (i * NUMBER_OF_SCALE_FACTORS) / scaledData.length;
 //            Log.d("EQ", String.format("i: %d, bucket: %d", i, bucket));
-            scaledData[i] = (int) (((bytes[i] + 128) / 255.0) * MAXIMAL_SCALE_FACTOR * SCALE_FACTORS[bucket]);
+//            scaledData[i] = (int) (((bytes[i] + 128) / 255.0) * MAXIMAL_SCALE_FACTOR * SCALE_FACTORS[bucket]);
+            if (magnitudes[i] > MAXIMAL_VALUE) {
+                magnitudes[i] = MAXIMAL_VALUE;
+            }
+            scaledData[i] = (int) ((magnitudes[i] / (float) MAXIMAL_VALUE) * MAXIMAL_SCALE_FACTOR);// * SCALE_FACTORS[bucket]);
         }
 
         // Average the data for every i as Avg(i - AVERAGING_WINDOW / 2 .. i + AVERAGING_WINDOW / 2)
-        final int[] averagedData = new int[inputDataLength];
-        for (int i = 0; i < inputDataLength; i++) {
+        final int[] averagedData = new int[magnitudes.length];
+        for (int i = 0; i < averagedData.length; i++) {
 
             int sum = 0;
             for (int j = -AVERAGING_WINDOW / 2; j <= AVERAGING_WINDOW / 2; j++) {
-                sum += scaledData[(i + j + inputDataLength) % inputDataLength];
+                sum += magnitudes[(i + j + averagedData.length) % averagedData.length];
             }
             averagedData[i] = sum / (AVERAGING_WINDOW + 1);
         }
@@ -157,9 +174,9 @@ public class DynamicBezierCircleView extends BezierView {
 
         // Calculate the new target frame
         PointF[] newTargetData = new PointF[NUMBER_OF_SAMPLES + 1];
-        newTargetData[0] = fromPolar(radius + OFFSET + averagedData[0], 0, center);
-        final int step = inputDataLength / NUMBER_OF_SAMPLES;
-        for (int i = step, j = 1; i < inputDataLength && j < NUMBER_OF_SAMPLES; i += step, j++) {
+        newTargetData[0] = fromPolar(radius + OFFSET + magnitudes[0], 0, center);
+        final int step = averagedData.length / NUMBER_OF_SAMPLES;
+        for (int i = step, j = 1; i < averagedData.length && j < NUMBER_OF_SAMPLES; i += step, j++) {
             final int phi = (j * 360) / NUMBER_OF_SAMPLES;
             newTargetData[j] = fromPolar(radius + OFFSET + averagedData[i], phi, center);
         }
@@ -214,7 +231,7 @@ public class DynamicBezierCircleView extends BezierView {
         super.onDraw(canvas);
         canvas.drawCircle(center.x, center.y, radius, basePaint);
 
-        if (points != null && points.length > 3) {
+        if (points != null && points.length >= 3) {
             canvas.drawPath(calculateBezier(points[currentFrame], true), paint);
         }
 
