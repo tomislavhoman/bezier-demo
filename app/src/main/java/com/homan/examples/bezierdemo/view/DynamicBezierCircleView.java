@@ -19,24 +19,33 @@ public class DynamicBezierCircleView extends BezierView {
 //    private static final String MEDIA_URL = "http://www.audiocheck.net/Audio/audiocheck.net_frequencycheckhigh_44100.mp3";
 //    private static final String MEDIA_URL = "http://www.audiocheck.net/Audio/audiocheck.net_sweep20-20klog.mp3";
 
+    // Refresh rates setup
     private static final int UI_FPS = 60;
     private static final int DATA_FPS = 20; // max 20
 
     private static final int REFRESH_RATE = 1000 / UI_FPS; // ms
     private static final int CAPTURE_RATE = DATA_FPS; // Hz - max 20
 
+    // Truncations setup
+    private static final int BOTTOM_OFFSET = 32;
+
+    //Scaling setup
+    private static final double SCALE_REFERENCE_FACTOR = 100.0;
+    private static final double SCALE_TARGET = 100.0; // [px]
+    private static final int MAXIMAL_VALUE = 100; // [px]
+    private static final double[] SCALE_FACTORS = new double[]{1.0, 1.0, 1.0, 1.0, 1.5, 1.5, 1.5}; // fraction of maximal
+    private static final int NUMBER_OF_SCALE_FACTORS = SCALE_FACTORS.length;
+
+    // Averaging setup
+    private static final int AVERAGING_WINDOW = 4;
+
+    // Sampling setup
+    private static final int NUMBER_OF_SAMPLES = 64;
+    private static final int OFFSET = 20; // [px]
+
+    // Interpolation setup
     // Should be data capture rate [ms] / ui refresh rate [ms]
     private static final int NUMBER_OF_INTERPOLATED_FRAMES = 1000 / (REFRESH_RATE * CAPTURE_RATE);
-
-    private static final int NUMBER_OF_SAMPLES = 64;
-    private static final int OFFSET = 20;
-
-    private static final int AVERAGING_WINDOW = 4;
-    private static final double MAXIMAL_SCALE_FACTOR = 40.0;
-    private static final int MAXIMAL_VALUE = 256;
-
-    private static final double[] SCALE_FACTORS = new double[]{1.0}; // fraction of maximal
-    private static final int NUMBER_OF_SCALE_FACTORS = SCALE_FACTORS.length;
 
     private Handler uiHandler = new Handler(Looper.getMainLooper());
 
@@ -117,40 +126,77 @@ public class DynamicBezierCircleView extends BezierView {
 
     private void calculateData(byte[] bytes) {
 
-        final int offset = 64;
-        final int[] truncatedData = new int[bytes.length / 2 - offset];
-        for (int i = 0; i < truncatedData.length; i++) {
-            truncatedData[i] = bytes[i + offset];
-        }
+        final int[] truncatedData = truncateData(bytes);
+        final int[] magnitudes = calculateMagnitudes(truncatedData);
+        final int[] scaledData = scaleData(magnitudes);
+        final int[] averagedData = averageData(scaledData);
 
+        final PointF[] newOriginData = calculateNewOriginFrame();
+        final PointF[] newTargetData = calculateNewTargetFrame(averagedData);
+
+        // Create new set of frames as {origin, interpolated, target, origin(to close the loop)}
+        final PointF[][] newFrames = new PointF[NUMBER_OF_INTERPOLATED_FRAMES][NUMBER_OF_SAMPLES + 1];
+
+        // Set the new origin and target frames
+        newFrames[0] = newOriginData;
+        newFrames[NUMBER_OF_INTERPOLATED_FRAMES - 1] = newTargetData;
+
+        fillWithLinearyInterpolatedFrames(newFrames);
+
+        this.points = newFrames;
+        currentFrame = 0;
+    }
+
+    private int[] truncateData(final byte[] bytes) {
+        final int[] truncatedData = new int[bytes.length / 2 - BOTTOM_OFFSET];
+        for (int i = 0; i < truncatedData.length; i++) {
+            truncatedData[i] = bytes[i + BOTTOM_OFFSET];
+        }
+        return truncatedData;
+    }
+
+    private int[] calculateMagnitudes(final int[] truncatedData) {
         final int[] magnitudes = new int[truncatedData.length / 2];
         for (int i = 0; i < magnitudes.length; i++) {
-            magnitudes[i] = bytes[2 * i] * bytes[2 * i] + bytes[2 * i + 1] * bytes[2 * i + 1];
+            magnitudes[i] = truncatedData[2 * i] * truncatedData[2 * i] + truncatedData[2 * i + 1] * truncatedData[2 * i + 1];
         }
+        return magnitudes;
+    }
 
-        // Scaled data to [0..SCALE_FACTOR]
+    private int[] scaleData(final int[] magnitudes) {
         final int[] scaledData = new int[magnitudes.length];
         for (int i = 0; i < scaledData.length; i++) {
-//            final int bucket = (i * NUMBER_OF_SCALE_FACTORS) / scaledData.length;
-//            Log.d("EQ", String.format("i: %d, bucket: %d", i, bucket));
-//            scaledData[i] = (int) (((bytes[i] + 128) / 255.0) * MAXIMAL_SCALE_FACTOR * SCALE_FACTORS[bucket]);
-            if (magnitudes[i] > MAXIMAL_VALUE) {
-                magnitudes[i] = MAXIMAL_VALUE;
+            final int bucket = (i * NUMBER_OF_SCALE_FACTORS) / scaledData.length;
+            double magnitudeRatio = (double) magnitudes[i] / SCALE_REFERENCE_FACTOR;
+            if (magnitudeRatio > 1.0) {
+                magnitudeRatio = 1.0;
             }
-            scaledData[i] = (int) ((magnitudes[i] / (float) MAXIMAL_VALUE) * MAXIMAL_SCALE_FACTOR);// * SCALE_FACTORS[bucket]);
-        }
 
+            scaledData[i] = (int) (magnitudeRatio * SCALE_TARGET * SCALE_FACTORS[bucket]);
+
+            // Cut of excess data
+            if (scaledData[i] > MAXIMAL_VALUE) {
+                scaledData[i] = MAXIMAL_VALUE;
+            }
+        }
+        return scaledData;
+    }
+
+    private int[] averageData(final int[] scaledData) {
         // Average the data for every i as Avg(i - AVERAGING_WINDOW / 2 .. i + AVERAGING_WINDOW / 2)
-        final int[] averagedData = new int[magnitudes.length];
+        final int[] averagedData = new int[scaledData.length];
         for (int i = 0; i < averagedData.length; i++) {
 
             int sum = 0;
             for (int j = -AVERAGING_WINDOW / 2; j <= AVERAGING_WINDOW / 2; j++) {
-                sum += magnitudes[(i + j + averagedData.length) % averagedData.length];
+                sum += scaledData[(i + j + averagedData.length) % averagedData.length];
             }
             averagedData[i] = sum / (AVERAGING_WINDOW + 1);
         }
+        return averagedData;
+    }
 
+    private PointF[] calculateNewOriginFrame() {
         /*
             Get new origin frame. It is either last shown frame,
             or if nothing was shown we calculate the default frame
@@ -169,12 +215,13 @@ public class DynamicBezierCircleView extends BezierView {
             newOriginData = points[NUMBER_OF_INTERPOLATED_FRAMES - 1];
         }
 
-        // Create new set of frame as {origin, interpolated, target, origin(to close the loop)}
-        points = new PointF[NUMBER_OF_INTERPOLATED_FRAMES][NUMBER_OF_SAMPLES + 1];
+        return newOriginData;
+    }
 
+    private PointF[] calculateNewTargetFrame(final int[] averagedData) {
         // Calculate the new target frame
-        PointF[] newTargetData = new PointF[NUMBER_OF_SAMPLES + 1];
-        newTargetData[0] = fromPolar(radius + OFFSET + magnitudes[0], 0, center);
+        final PointF[] newTargetData = new PointF[NUMBER_OF_SAMPLES + 1];
+        newTargetData[0] = fromPolar(radius + OFFSET + averagedData[0], 0, center);
         final int step = averagedData.length / NUMBER_OF_SAMPLES;
         for (int i = step, j = 1; i < averagedData.length && j < NUMBER_OF_SAMPLES; i += step, j++) {
             final int phi = (j * 360) / NUMBER_OF_SAMPLES;
@@ -182,24 +229,24 @@ public class DynamicBezierCircleView extends BezierView {
         }
         newTargetData[NUMBER_OF_SAMPLES] = newTargetData[0];
 
-        // Set the new origin and target frames
-        points[0] = newOriginData;
-        points[NUMBER_OF_INTERPOLATED_FRAMES - 1] = newTargetData;
+        return newTargetData;
+    }
 
+    private void fillWithLinearyInterpolatedFrames(final PointF[][] data) {
         // Interpolate (linear)
         for (int j = 0; j < NUMBER_OF_SAMPLES; j++) {
-            final PointF targetPoint = points[NUMBER_OF_INTERPOLATED_FRAMES - 1][j];
-            final PointF originPoint = points[0][j];
+            final PointF targetPoint = data[NUMBER_OF_INTERPOLATED_FRAMES - 1][j];
+            final PointF originPoint = data[0][j];
             final double deltaX = (targetPoint.x - originPoint.x) / NUMBER_OF_INTERPOLATED_FRAMES;
             final double deltaY = (targetPoint.y - originPoint.y) / NUMBER_OF_INTERPOLATED_FRAMES;
             for (int i = 1; i < NUMBER_OF_INTERPOLATED_FRAMES - 1; i++) {
-                points[i][j] = new PointF((float) (originPoint.x + i * deltaX), (float) (originPoint.y + i * deltaY));
+                data[i][j] = new PointF((float) (originPoint.x + i * deltaX), (float) (originPoint.y + i * deltaY));
             }
         }
+
         for (int i = 1; i < NUMBER_OF_INTERPOLATED_FRAMES - 1; i++) {
-            points[i][NUMBER_OF_SAMPLES] = points[i][0];
+            data[i][NUMBER_OF_SAMPLES] = data[i][0];
         }
-        currentFrame = 0;
     }
 
     private Runnable invalidateRunnable = new Runnable() {
