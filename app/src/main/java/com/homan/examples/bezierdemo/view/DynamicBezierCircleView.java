@@ -33,7 +33,8 @@ public class DynamicBezierCircleView extends BezierView {
 
     //Scaling setup
     private static final double SCALE_REFERENCE_FACTOR = 100.0;
-    private static final double SCALE_TARGET = 100.0; // [px]
+    private static final double OUTER_SCALE_TARGET = 100.0; // [px]
+    private static final double INNER_SCALE_TARGET = 30.0; // [px]
     private static final int MAXIMAL_VALUE = 100; // [px]
     private static final double[] SCALE_FACTORS = new double[]{1.0, 1.0, 1.0, 1.0, 1.5, 1.5, 1.5}; // fraction of maximal
     private static final int NUMBER_OF_SCALE_FACTORS = SCALE_FACTORS.length;
@@ -43,7 +44,8 @@ public class DynamicBezierCircleView extends BezierView {
 
     // Sampling setup
     private static final int NUMBER_OF_SAMPLES = 64;
-    private static final int OFFSET = 20; // [px]
+    private static final int OUTER_OFFSET = 20; // [px]
+    private static final int INNER_OFFSET = -20; // [px]
 
     // Interpolation setup
     // Should be data capture rate [ms] / ui refresh rate [ms]
@@ -52,14 +54,16 @@ public class DynamicBezierCircleView extends BezierView {
     private Handler uiHandler = new Handler(Looper.getMainLooper());
 
     private int currentFrame = 0;
-    private PointF[][] points;
+    private PointF[][] outerPoints;
+    private PointF[][] innerPoints;
     private PointF center;
     private int radius;
 
     private MediaPlayer mediaPlayer;
     private Visualizer visualizer;
 
-    private Paint equalizerPaint;
+    private Paint outerPaint;
+    private Paint middlePaint;
     private Paint innerPaint;
 
     public DynamicBezierCircleView(Context context) {
@@ -80,9 +84,13 @@ public class DynamicBezierCircleView extends BezierView {
     private void init() {
         mediaPlayer = new MediaPlayer();
 
-        equalizerPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        equalizerPaint.setColor(Color.GRAY);
-        equalizerPaint.setStyle(Paint.Style.FILL);
+        outerPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        outerPaint.setColor(Color.GRAY);
+        outerPaint.setStyle(Paint.Style.FILL);
+
+        middlePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        middlePaint.setColor(Color.RED);
+        middlePaint.setStyle(Paint.Style.FILL);
 
         innerPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         innerPaint.setColor(Color.WHITE);
@@ -137,15 +145,10 @@ public class DynamicBezierCircleView extends BezierView {
         stopAnimation();
     }
 
-    private void calculateData(byte[] bytes) {
+    private PointF[][] calculateContours(final PointF[][] currentData, final int[] averagedData, final int offset, final boolean goOutwards) {
 
-        final int[] truncatedData = truncateData(bytes);
-        final int[] magnitudes = calculateMagnitudes(truncatedData);
-        final int[] scaledData = scaleData(magnitudes);
-        final int[] averagedData = averageData(scaledData);
-
-        final PointF[] newOriginData = calculateNewOriginFrame();
-        final PointF[] newTargetData = calculateNewTargetFrame(averagedData);
+        final PointF[] newOriginData = calculateNewOriginFrame(currentData, offset);
+        final PointF[] newTargetData = calculateNewTargetFrame(averagedData, offset, goOutwards);
 
         // Create new set of frames as {origin, interpolated, target, origin(to close the loop)}
         final PointF[][] newFrames = new PointF[NUMBER_OF_INTERPOLATED_FRAMES][NUMBER_OF_SAMPLES + 1];
@@ -156,7 +159,21 @@ public class DynamicBezierCircleView extends BezierView {
 
         fillWithLinearyInterpolatedFrames(newFrames);
 
-        this.points = newFrames;
+        return newFrames;
+    }
+
+    private void calculateData(byte[] bytes) {
+
+        final int[] truncatedData = truncateData(bytes);
+        final int[] magnitudes = calculateMagnitudes(truncatedData);
+        final int[] outerScaledData = scaleData(magnitudes, OUTER_SCALE_TARGET);
+        final int[] innerScaledData = scaleData(magnitudes, INNER_SCALE_TARGET);
+        final int[] outerAveragedData = averageData(outerScaledData);
+        final int[] innerAveragedData = averageData(innerScaledData);
+
+
+        this.outerPoints = calculateContours(outerPoints, outerAveragedData, OUTER_OFFSET, true);
+        this.innerPoints = calculateContours(innerPoints, innerAveragedData, INNER_OFFSET, false);
         currentFrame = 0;
     }
 
@@ -176,7 +193,7 @@ public class DynamicBezierCircleView extends BezierView {
         return magnitudes;
     }
 
-    private int[] scaleData(final int[] magnitudes) {
+    private int[] scaleData(final int[] magnitudes, final double scaleTarget) {
         final int[] scaledData = new int[magnitudes.length];
         for (int i = 0; i < scaledData.length; i++) {
             final int bucket = (i * NUMBER_OF_SCALE_FACTORS) / scaledData.length;
@@ -185,7 +202,7 @@ public class DynamicBezierCircleView extends BezierView {
                 magnitudeRatio = 1.0;
             }
 
-            scaledData[i] = (int) (magnitudeRatio * SCALE_TARGET * SCALE_FACTORS[bucket]);
+            scaledData[i] = (int) (magnitudeRatio * scaleTarget * SCALE_FACTORS[bucket]);
 
             // Cut of excess data
             if (scaledData[i] > MAXIMAL_VALUE) {
@@ -209,36 +226,37 @@ public class DynamicBezierCircleView extends BezierView {
         return averagedData;
     }
 
-    private PointF[] calculateNewOriginFrame() {
+    private PointF[] calculateNewOriginFrame(PointF[][] currentData, final int offset) {
         /*
             Get new origin frame. It is either last shown frame,
             or if nothing was shown we calculate the default frame
          */
         PointF[] newOriginData;
-        if (points == null) {
+        if (currentData == null) {
             newOriginData = new PointF[NUMBER_OF_SAMPLES + 1];
 
             for (int i = 0; i < NUMBER_OF_SAMPLES; i++) {
                 final int phi = (i * 360) / NUMBER_OF_SAMPLES;
-                newOriginData[i] = fromPolar(radius + OFFSET, phi, center);
+                newOriginData[i] = fromPolar(radius + offset, phi, center);
             }
             newOriginData[NUMBER_OF_SAMPLES] = newOriginData[0];
 
         } else {
-            newOriginData = points[currentFrame];
+            newOriginData = currentData[currentFrame];
         }
 
         return newOriginData;
     }
 
-    private PointF[] calculateNewTargetFrame(final int[] averagedData) {
+    private PointF[] calculateNewTargetFrame(final int[] averagedData, final int offset, final boolean drawTowardsOutside) {
         // Calculate the new target frame
         final PointF[] newTargetData = new PointF[NUMBER_OF_SAMPLES + 1];
-        newTargetData[0] = fromPolar(radius + OFFSET + averagedData[0], 0, center);
+        newTargetData[0] = fromPolar(radius + offset + averagedData[0], 0, center);
         final int step = averagedData.length / NUMBER_OF_SAMPLES;
         for (int i = step, j = 1; i < averagedData.length && j < NUMBER_OF_SAMPLES; i += step, j++) {
             final int phi = (j * 360) / NUMBER_OF_SAMPLES;
-            newTargetData[j] = fromPolar(radius + OFFSET + averagedData[i], phi, center);
+            final int newRadialPoint = radius + offset + (drawTowardsOutside ? averagedData[i] : -averagedData[i]);
+            newTargetData[j] = fromPolar(newRadialPoint, phi, center);
         }
         newTargetData[NUMBER_OF_SAMPLES] = newTargetData[0];
 
@@ -291,14 +309,19 @@ public class DynamicBezierCircleView extends BezierView {
         super.onDraw(canvas);
 //        canvas.drawCircle(center.x, center.y, radius, basePaint);
 
-        if (points != null && points.length >= 3) {
-            canvas.drawPath(calculateBezier(points[currentFrame], true), equalizerPaint);
-        }
-        canvas.drawCircle(center.x, center.y, radius, innerPaint);
+        drawContour(canvas, outerPoints, currentFrame, outerPaint);
+        canvas.drawCircle(center.x, center.y, radius, middlePaint);
+        drawContour(canvas, innerPoints, currentFrame, innerPaint);
 
         currentFrame++;
         if (currentFrame >= NUMBER_OF_INTERPOLATED_FRAMES) {
             currentFrame = NUMBER_OF_INTERPOLATED_FRAMES - 1;
+        }
+    }
+
+    private void drawContour(final Canvas canvas, final PointF[][] countourPoints, final int frame, final Paint paint) {
+        if (countourPoints != null && countourPoints.length >= 3) {
+            canvas.drawPath(calculateBezier(countourPoints[frame], true), paint);
         }
     }
 }
