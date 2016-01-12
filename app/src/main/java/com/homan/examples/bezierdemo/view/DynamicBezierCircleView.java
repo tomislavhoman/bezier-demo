@@ -2,6 +2,8 @@ package com.homan.examples.bezierdemo.view;
 
 import android.content.Context;
 import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
 import android.graphics.PointF;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
@@ -57,6 +59,9 @@ public class DynamicBezierCircleView extends BezierView {
     private MediaPlayer mediaPlayer;
     private Visualizer visualizer;
 
+    private Paint equalizerPaint;
+    private Paint innerPaint;
+
     public DynamicBezierCircleView(Context context) {
         super(context);
         init();
@@ -74,6 +79,14 @@ public class DynamicBezierCircleView extends BezierView {
 
     private void init() {
         mediaPlayer = new MediaPlayer();
+
+        equalizerPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        equalizerPaint.setColor(Color.GRAY);
+        equalizerPaint.setStyle(Paint.Style.FILL);
+
+        innerPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        innerPaint.setColor(Color.WHITE);
+        innerPaint.setStyle(Paint.Style.FILL);
     }
 
     public void play(final Context context) {
@@ -212,7 +225,7 @@ public class DynamicBezierCircleView extends BezierView {
             newOriginData[NUMBER_OF_SAMPLES] = newOriginData[0];
 
         } else {
-            newOriginData = points[NUMBER_OF_INTERPOLATED_FRAMES - 1];
+            newOriginData = points[currentFrame];
         }
 
         return newOriginData;
@@ -276,11 +289,12 @@ public class DynamicBezierCircleView extends BezierView {
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-        canvas.drawCircle(center.x, center.y, radius, basePaint);
+//        canvas.drawCircle(center.x, center.y, radius, basePaint);
 
         if (points != null && points.length >= 3) {
-            canvas.drawPath(calculateBezier(points[currentFrame], true), paint);
+            canvas.drawPath(calculateBezier(points[currentFrame], true), equalizerPaint);
         }
+        canvas.drawCircle(center.x, center.y, radius, innerPaint);
 
         currentFrame++;
         if (currentFrame >= NUMBER_OF_INTERPOLATED_FRAMES) {
